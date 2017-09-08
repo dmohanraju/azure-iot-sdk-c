@@ -11,7 +11,7 @@
 
 #include "dps_hsm_riot.h"
 
-#define MAX_VALIDATION_CODE_LEN         24
+#define MAX_VALIDATION_CODE_LEN         48
 
 typedef struct DICE_ENROLLMENT_INFO_TAG
 {
@@ -30,7 +30,7 @@ static char* get_user_input()
     else
     {
         int index = 0;
-        memset(result, 0, sizeof(MAX_VALIDATION_CODE_LEN+1) );
+        memset(result, 0, MAX_VALIDATION_CODE_LEN+1);
         printf("Enter the Validation Code (Press enter when finished): ");
         // trim the leading spaces
         while (1)
@@ -60,7 +60,8 @@ static char* get_user_input()
             index++;
         }
 
-        if (strlen(result) != MAX_VALIDATION_CODE_LEN)
+        size_t code_len = strlen(result);
+        if (code_len != MAX_VALIDATION_CODE_LEN)
         {
             (void)printf("Invalid validation code specified\r\n");
             free(result);

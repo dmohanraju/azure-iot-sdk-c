@@ -25,11 +25,12 @@ add_unittest_directory(iothub_drs_client_ut)
 if(${dps_hsm_x509})
     add_unittest_directory(iothub_security_x509_ut)
     add_unittest_directory(dps_hsm_riot_ut)
-    add_e2etest_directory(dps_client_e2e)
 else()
     add_unittest_directory(iothub_security_sas_ut)
     add_unittest_directory(dps_hsm_tpm_ut)
 endif()
+
+#add_e2etest_directory(dps_client_e2e)
 
 add_unittest_directory(uhttp_ut)
 add_unittest_directory(base32_ut)

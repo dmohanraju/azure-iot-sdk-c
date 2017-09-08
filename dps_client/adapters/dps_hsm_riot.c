@@ -44,6 +44,12 @@ static uint8_t RAMDOM_DIGEST[DICE_DIGEST_LENGTH] = {
     0xe0, 0x94, 0xab, 0xaf, 0xd7, 0x40, 0x78, 0x7e,
     0x05, 0x0d, 0xfe, 0x6d, 0x85, 0x90, 0x53, 0xa0 };
 
+unsigned char firmware_id[RIOT_DIGEST_LENGTH] = {
+    0x6B, 0xE9, 0xB1, 0x84, 0xC9, 0x37, 0xC2, 0x8E,
+    0x12, 0x2E, 0xEE, 0x51, 0x2B, 0x68, 0xEA, 0x8E,
+    0x00, 0xC3, 0xDD, 0x15, 0x9E, 0xA4, 0xE8, 0x5E,
+    0x84, 0xCB, 0xA9, 0x66, 0xF4, 0x46, 0xCD, 0x4E };
+
 // The static data fields that make up the x509 "to be signed" region
 //static RIOT_X509_TBS_DATA X509_TBS_DATA = { { 0x0A, 0x0B, 0x0C, 0x0D, 0x0E },
 //"RIoT Core", "MSR_TEST", "US", "170101000000Z", "370101000000Z", "RIoT Device", "MSR_TEST", "US" };
@@ -416,12 +422,6 @@ static int process_riot_key_info(DPS_SECURE_DEVICE_INFO* riot_info)
     int result;
     RIOT_STATUS status;
 
-    unsigned char firmware_id[RIOT_DIGEST_LENGTH] = {
-        0x6B, 0xE9, 0xB1, 0x84, 0xC9, 0x37, 0xC2, 0x8E,
-        0x12, 0x2E, 0xEE, 0x51, 0x2B, 0x68, 0xEA, 0x8E,
-        0x00, 0xC3, 0xDD, 0x15, 0x9E, 0xA4, 0xE8, 0x5E,
-        0x84, 0xCB, 0xA9, 0x66, 0xF4, 0x46, 0xCD, 0x4E };
-
     /* Codes_SRS_SECURE_DEVICE_RIOT_07_002: [ dps_hsm_riot_create shall call into the RIot code to sign the RIoT certificate. ] */
     // Don't use CDI directly
     if (g_digest_initialized == 0)
@@ -774,8 +774,8 @@ char* dps_hsm_riot_create_leaf_cert(DPS_SECURE_DEVICE_HANDLE handle, const char*
 
     // The static data fields that make up the DeviceID Cert "to be signed" region
     RIOT_X509_TBS_DATA LEAF_CERT_TBS_DATA = {
-        { 0x0E, 0x0D, 0x0C, 0x0B, 0x0A }, "", "MSR_TEST", "US",
-        "170101000000Z", "370101000000Z", RIOT_SIGNER_NAME, "MSR_TEST", "US" };
+        { 0x5E, 0x4D, 0x3C, 0x2B, 0x1A }, RIOT_CA_CERT_NAME, "MSR_TEST", "US",
+        "170101000000Z", "370101000000Z", "", "MSR_TEST", "US" };
 
     if (handle == NULL || common_name == NULL)
     {
@@ -785,28 +785,29 @@ char* dps_hsm_riot_create_leaf_cert(DPS_SECURE_DEVICE_HANDLE handle, const char*
     else
     {
         RIOT_STATUS status;
-        uint8_t der_buffer[DER_MAX_TBS] = { 0 };
-        DERBuilderContext der_ctx = { 0 };
+        uint8_t leaf_buffer[DER_MAX_TBS] = { 0 };
+        DERBuilderContext leaf_ctx = { 0 };
         RIOT_ECC_PUBLIC     leaf_id_pub;
-        RIOT_ECC_PRIVATE    leaf_id_priv;
         RIOT_ECC_SIGNATURE tbs_sig = { 0 };
+
+        //DPS_SECURE_DEVICE_INFO* riot_info = (DPS_SECURE_DEVICE_INFO*)handle;
 
         LEAF_CERT_TBS_DATA.SubjectCommon = common_name;
 
-        DERInitContext(&der_ctx, der_buffer, DER_MAX_TBS);
-        if (X509GetDERCsrTbs(&der_ctx, &LEAF_CERT_TBS_DATA, &leaf_id_pub) != 0)
+        DERInitContext(&leaf_ctx, leaf_buffer, DER_MAX_TBS);
+        if (X509GetAliasCertTBS(&leaf_ctx, &LEAF_CERT_TBS_DATA, &leaf_id_pub, (RIOT_ECC_PUBLIC*)&eccRootPubBytes,
+            firmware_id, RIOT_DIGEST_LENGTH) != 0)
         {
             LogError("Failure: X509GetDeviceCertTBS");
             result = NULL;
         }
         // Sign the Alias Key Certificate's TBS region
-        else if ((status = RiotCrypt_Sign(&tbs_sig, der_ctx.Buffer, der_ctx.Position, &leaf_id_priv)) != RIOT_SUCCESS)
+        else if ((status = RiotCrypt_Sign(&tbs_sig, leaf_ctx.Buffer, leaf_ctx.Position, (const RIOT_ECC_PRIVATE*)&eccRootPrivBytes)) != RIOT_SUCCESS)
         {
             LogError("Failure: RiotCrypt_Sign returned invalid status %d.", status);
             result = NULL;
         }
-        // Create CSR for DeviceID
-        else if (X509GetDERCsr(&der_ctx, &tbs_sig) != 0)
+        else if (X509MakeAliasCert(&leaf_ctx, &tbs_sig) != 0)
         {
             LogError("Failure: X509GetDERCsr");
             result = NULL;
@@ -818,8 +819,8 @@ char* dps_hsm_riot_create_leaf_cert(DPS_SECURE_DEVICE_HANDLE handle, const char*
         else
         {
             memset(result, 0, DER_MAX_PEM+1);
-            uint32_t leaf_len;
-            if (DERtoPEM(&der_ctx, CERT_TYPE, result, &leaf_len) != 0)
+            uint32_t leaf_len = DER_MAX_PEM;
+            if (DERtoPEM(&leaf_ctx, CERT_TYPE, result, &leaf_len) != 0)
             {
                 LogError("Failure: DERtoPEM return invalid value.");
                 free(result);

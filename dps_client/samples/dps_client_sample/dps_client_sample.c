@@ -30,7 +30,7 @@ DEFINE_ENUM_STRINGS(DPS_ERROR, DPS_ERROR_VALUES);
 DEFINE_ENUM_STRINGS(DPS_REGISTRATION_STATUS, DPS_REGISTRATION_STATUS_VALUES);
 
 static const char* dps_uri = "global.azure-devices-provisioning.net";
-static const char* dps_scope_id = "[DPS Id Scope]";
+static const char* dps_scope_id = "0ne00000032";
 
 static bool g_trace_on = true;
 
